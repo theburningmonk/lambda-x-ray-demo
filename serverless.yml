@@ -1,0 +1,117 @@
+service: lambda-x-ray-demo
+
+plugins:
+  - serverless-plugin-tracing
+
+provider:
+  name: aws
+  runtime: nodejs6.10
+  stage: dev
+  region: us-east-1
+  tracing: true
+  versionFunctions: false
+  environment:
+    stage: ${self:provider.stage}
+    service: ${self:service}
+
+  iamRoleStatements:
+    - Effect: "Allow" # xray permissions (required)
+      Action:
+        - "xray:PutTraceSegments"
+        - "xray:PutTelemetryRecords"
+      Resource:
+        - "*"
+    - Effect: "Allow"
+      Action:
+        - "dynamodb:PutItem"
+        - "dynamodb:GetItem"
+      Resource:
+        - "arn:aws:dynamodb:${self:provider.region}:*:table/lambda-x-ray-demo-${self:provider.stage}"
+    - Effect: "Allow"
+      Action:
+        - "s3:GetObject*"
+        - "s3:PutObject*"
+        - "s3:ListBucket*"
+      Resource:
+        - "arn:aws:s3:::lambda-x-ray-demo-${self:provider.stage}"
+        - "arn:aws:s3:::lambda-x-ray-demo-${self:provider.stage}/*"
+    - Effect: "Allow"
+      Action:
+        - "sns:Publish"
+      Resource:
+        - "arn:aws:sns:${self:provider.region}:*:lambda-x-ray-demo-${self:provider.stage}"
+    - Effect: "Allow"
+      Action:
+        - "lambda:InvokeFunction"
+      Resource:
+        - "arn:aws:lambda:${self:provider.region}:*:function:lambda-x-ray-demo-${self:provider.stage}-*"
+
+functions:
+  service-a:
+    handler: functions/service-a.handler
+    events:
+      - http:
+          path: demo/service-a
+          method: get
+
+  service-b:
+    handler: functions/service-b.handler
+    events:
+      - http:
+          path: demo/service-b
+          method: get
+
+  service-c:
+    handler: functions/service-c.handler
+
+  timeout:
+    handler: functions/timeout.handler
+    timeout: 1
+    events:
+      - http:
+          path: demo/timeout
+          method: get
+
+  error:
+    handler: functions/error.handler
+    events:
+      - http:
+          path: demo/error
+          method: get
+
+#    Define function environment variables here
+#    environment:
+#      variable2: value2
+
+# you can add CloudFormation resource templates here
+resources:
+  Resources:
+    S3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: lambda-x-ray-demo-${self:provider.stage}
+
+    SNS:
+      Type: AWS::SNS::Topic
+      Properties:
+        DisplayName: lambda-x-ray-demo-${self:provider.stage}
+        TopicName: lambda-x-ray-demo-${self:provider.stage}
+
+    DynamoDB:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: lambda-x-ray-demo-${self:provider.stage}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+#  Outputs:
+#     NewOutput:
+#       Description: "Description for the output"
+#       Value: "Some output value"

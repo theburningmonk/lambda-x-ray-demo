@@ -1,8 +1,7 @@
 'use strict';
 
 module.exports.handler = (event, context, callback) => {
-  console.log(JSON.stringify(event));
-  console.log("service-b is going to call service-c");
+  console.log(JSON.stringify(event));  
 
   const response = {
     statusCode: 200,

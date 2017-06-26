@@ -1,9 +1,9 @@
 'use strict';
 
 const AWSXRay = require('aws-xray-sdk');
-console.log(AWSXRay);
-
 const https   = AWSXRay.captureHTTPs(require('https'));
+
+console.log(AWSXRay);
 
 let request = (method, hostname, path) => {
   const options = { hostname, port: 443, path, method };

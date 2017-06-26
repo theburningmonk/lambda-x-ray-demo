@@ -13,6 +13,8 @@ provider:
   environment:
     stage: ${self:provider.stage}
     service: ${self:service}
+    accountId: 
+      Ref: AWS::AccountId
 
   iamRoleStatements:
     - Effect: "Allow" # xray permissions (required)
@@ -49,6 +51,7 @@ provider:
 functions:
   service-a:
     handler: functions/service-a.handler
+    timeout: 10
     events:
       - http:
           path: demo/service-a

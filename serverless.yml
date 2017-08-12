@@ -82,6 +82,13 @@ functions:
           path: demo/error
           method: get
 
+  sns:
+    handler: functions/sns.handler
+    events:
+      - sns:
+          topicName: ${self:service}-${self:provider.stage}
+          displayName: ${self:service}-${self:provider.stage}
+
 #    Define function environment variables here
 #    environment:
 #      variable2: value2
@@ -93,12 +100,6 @@ resources:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: lambda-x-ray-demo-${self:provider.stage}
-
-    SNS:
-      Type: AWS::SNS::Topic
-      Properties:
-        DisplayName: lambda-x-ray-demo-${self:provider.stage}
-        TopicName: lambda-x-ray-demo-${self:provider.stage}
 
     DynamoDB:
       Type: AWS::DynamoDB::Table

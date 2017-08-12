@@ -168,8 +168,11 @@ module.exports.handler = co.wrap(function* (event, context, callback) {
   console.log(JSON.stringify(segment));
 
   let n = Math.random() * 3;
-  segment.addMetadata('random', `${n}`);      // this doesn't work
-  segment.addAnnotation('path', event.path);  // this doesn't work
+
+  // metadata and annotation are only allowed in subsegments, so these two lines
+  // won't work as they're adding to the root segment
+  segment.addMetadata('random', `${n}`);
+  segment.addAnnotation('path', event.path);
 
   if (n <= 1) {
     yield publishSNS(segment);

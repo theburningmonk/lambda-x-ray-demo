@@ -56,6 +56,10 @@ functions:
       - http:
           path: demo/service-a
           method: get
+          request:
+            parameters:
+              querystrings:
+                n: true
 
   service-b:
     handler: functions/service-b.handler

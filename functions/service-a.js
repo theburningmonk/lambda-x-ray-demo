@@ -1,5 +1,6 @@
 'use strict';
 
+const _        = require('lodash');
 const co       = require('co');
 const Promise  = require('bluebird');
 const utils    = require('./utils');
@@ -167,7 +168,7 @@ module.exports.handler = co.wrap(function* (event, context, callback) {
   let segment = AWSXRay.getSegment();
   console.log(JSON.stringify(segment));
 
-  let n = Math.random() * 3;
+  let n = _.get(event, 'queryStringParameters.n', 0);
 
   // metadata and annotation are only allowed in subsegments, so these two lines
   // won't work as they're adding to the root segment

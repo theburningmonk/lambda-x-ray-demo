@@ -12,6 +12,8 @@ const dynamodb = Promise.promisifyAll(new AWS.DynamoDB.DocumentClient());
 const lambda   = new AWS.Lambda();
 const region   = AWS.config.region;
 
+const BUCKET_NAME = process.env.BUCKET_NAME;
+
 let publishSNS = segment => {
   return new Promise((resolve, reject) => {
     console.log('publishing to SNS topic');
@@ -103,7 +105,7 @@ let accessS3 = segment => {
   return new Promise((resolve, reject) => {
     console.log('accessing S3 buket');
     let f = co.wrap(function* (subsegment) {
-      let bucket = `lambda-x-ray-demo-${process.env.stage}`;
+      let bucket = BUCKET_NAME;
       let key = `${global.requestId}.txt`;
       let body = 'test';
 

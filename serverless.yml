@@ -2,6 +2,10 @@ service: lambda-x-ray-demo
 
 plugins:
   - serverless-plugin-tracing
+  - serverless-pseudo-parameters
+
+custom:
+  bucketName: lambda-x-ray-demo-${self:provider.stage}-#{AWS::Region}-#{AWS::AccountId}
 
 provider:
   name: aws
@@ -35,8 +39,8 @@ provider:
         - "s3:PutObject*"
         - "s3:ListBucket*"
       Resource:
-        - "arn:aws:s3:::lambda-x-ray-demo-${self:provider.stage}"
-        - "arn:aws:s3:::lambda-x-ray-demo-${self:provider.stage}/*"
+        - "arn:aws:s3:::${self:custom.bucketName}"
+        - "arn:aws:s3:::${self:custom.bucketName}/*"
     - Effect: "Allow"
       Action:
         - "sns:Publish"
@@ -60,6 +64,8 @@ functions:
             parameters:
               querystrings:
                 n: true
+    environment:
+      BUCKET_NAME: ${self:custom.bucketName}
 
   service-b:
     handler: functions/service-b.handler
@@ -93,17 +99,13 @@ functions:
           topicName: ${self:service}-${self:provider.stage}
           displayName: ${self:service}-${self:provider.stage}
 
-#    Define function environment variables here
-#    environment:
-#      variable2: value2
-
 # you can add CloudFormation resource templates here
 resources:
   Resources:
     S3Bucket:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: lambda-x-ray-demo-${self:provider.stage}
+        BucketName: ${self:custom.bucketName}
 
     DynamoDB:
       Type: AWS::DynamoDB::Table
@@ -118,8 +120,3 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
-
-#  Outputs:
-#     NewOutput:
-#       Description: "Description for the output"
-#       Value: "Some output value"

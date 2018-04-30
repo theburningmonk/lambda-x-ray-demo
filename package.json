@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "serverless": "^1.16.0",
-    "serverless-plugin-tracing": "^1.0.6"
+    "serverless-plugin-tracing": "^1.0.6",
+    "serverless-pseudo-parameters": "^1.6.0"
   }
 }

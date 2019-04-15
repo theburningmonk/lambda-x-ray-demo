@@ -16,8 +16,7 @@
     "lodash": "^4.17.4"
   },
   "devDependencies": {
-    "serverless": "^1.16.0",
-    "serverless-plugin-tracing": "^1.0.6",
+    "serverless": "^1.40.0",
     "serverless-pseudo-parameters": "^1.6.0"
   }
 }

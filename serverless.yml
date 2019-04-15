@@ -1,7 +1,6 @@
 service: lambda-x-ray-demo
 
 plugins:
-  - serverless-plugin-tracing
   - serverless-pseudo-parameters
 
 custom:
@@ -9,10 +8,11 @@ custom:
 
 provider:
   name: aws
-  runtime: nodejs6.10
+  runtime: nodejs8.10
   stage: dev
   region: us-east-1
-  tracing: true
+  tracing:
+    lambda: true
   versionFunctions: false
   environment:
     stage: ${self:provider.stage}
@@ -21,12 +21,6 @@ provider:
       Ref: AWS::AccountId
 
   iamRoleStatements:
-    - Effect: "Allow" # xray permissions (required)
-      Action:
-        - "xray:PutTraceSegments"
-        - "xray:PutTelemetryRecords"
-      Resource:
-        - "*"
     - Effect: "Allow"
       Action:
         - "dynamodb:PutItem"

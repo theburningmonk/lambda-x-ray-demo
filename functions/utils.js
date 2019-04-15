@@ -1,5 +1,3 @@
-'use strict';
-
 const AWSXRay = require('aws-xray-sdk');
 const https   = AWSXRay.captureHTTPs(require('https'));
 

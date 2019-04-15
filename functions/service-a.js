@@ -1,14 +1,10 @@
-'use strict';
-
 const _        = require('lodash');
-const co       = require('co');
-const Promise  = require('bluebird');
 const utils    = require('./utils');
 const AWSXRay  = require('aws-xray-sdk');
 const AWS      = AWSXRay.captureAWS(require('aws-sdk'));
-const sns      = Promise.promisifyAll(new AWS.SNS());
-const s3       = Promise.promisifyAll(new AWS.S3());
-const dynamodb = Promise.promisifyAll(new AWS.DynamoDB.DocumentClient());
+const sns      = new AWS.SNS();
+const s3       = new AWS.S3();
+const dynamodb = new AWS.DynamoDB.DocumentClient();
 const lambda   = new AWS.Lambda();
 const region   = AWS.config.region;
 
@@ -17,7 +13,7 @@ const BUCKET_NAME = process.env.BUCKET_NAME;
 let publishSNS = segment => {
   return new Promise((resolve, reject) => {
     console.log('publishing to SNS topic');
-    let f = co.wrap(function* (subsegment) {
+    let f = async (subsegment) => {
       let topicArn = `arn:aws:sns:${region}:${global.accountId}:lambda-x-ray-demo-${process.env.stage}`;
       let message = 'test';
 
@@ -28,11 +24,11 @@ let publishSNS = segment => {
         Message: message,
         TopicArn: topicArn
       };
-      yield sns.publishAsync(req);
+      await sns.publish(req).promise();
 
       subsegment.close();
       resolve();
-    });
+    };
 
     AWSXRay.captureAsyncFunc("## publishing to SNS", f, segment);
   });
@@ -42,7 +38,7 @@ let invokeLambda = segment => {
   return new Promise((resolve, reject) => {
     console.log('invoking Lambda function');
 
-    let f = co.wrap(function* (subsegment) {
+    let f = async (subsegment) => {
       let funcName = `${process.env.service}-${process.env.stage}-service-c`;
       subsegment.addAnnotation('function', funcName);
 
@@ -52,14 +48,14 @@ let invokeLambda = segment => {
         Payload: ""
       };
 
-      let resp = yield lambda.invoke(req).promise();
+      let resp = await lambda.invoke(req).promise();
 
       let respBody = resp.Payload.toString('utf8');
       subsegment.addMetadata('responseBody', respBody);
 
       subsegment.close();
       resolve();
-    });
+    };
 
     AWSXRay.captureAsyncFunc("## invoking service-c", f, segment);
   });
@@ -68,7 +64,7 @@ let invokeLambda = segment => {
 let accessDynamoDB = segment => {
   return new Promise((resolve, reject) => {
     console.log('accessing DynamoDB');
-    let f = co.wrap(function* (subsegment) {
+    let f = async (subsegment) => {
       let table = `lambda-x-ray-demo-${process.env.stage}`;
       let id = global.requestId;
       let value = 'test';
@@ -83,7 +79,7 @@ let accessDynamoDB = segment => {
           id: value
         }
       };
-      yield dynamodb.getAsync(getReq);
+      await dynamodb.get(getReq).promise();
 
       let putReq = {
         TableName: table,
@@ -91,11 +87,11 @@ let accessDynamoDB = segment => {
           id: value,
         }
       };
-      yield dynamodb.putAsync(putReq);
+      await dynamodb.put(putReq).promise();
 
       subsegment.close();
       resolve();
-    });
+    };
 
     AWSXRay.captureAsyncFunc("## accessing DynamoDB", f, segment);
   });
@@ -104,7 +100,7 @@ let accessDynamoDB = segment => {
 let accessS3 = segment => {
   return new Promise((resolve, reject) => {
     console.log('accessing S3 buket');
-    let f = co.wrap(function* (subsegment) {
+    let f = async (subsegment) => {
       let bucket = BUCKET_NAME;
       let key = `${global.requestId}.txt`;
       let body = 'test';
@@ -117,18 +113,18 @@ let accessS3 = segment => {
         Bucket: bucket,
         Key: key
       };
-      yield s3.getObjectAsync(getReq).catch(_ => { }); // swallow errors
+      await s3.getObject(getReq).promise().catch(_ => { }); // swallow errors
 
       let putReq = {
         Body: body,
         Bucket: bucket,
         Key: key
       };
-      yield s3.putObjectAsync(putReq);
+      await s3.putObject(putReq).promise();
 
       subsegment.close();
       resolve();
-    });
+    };
 
     AWSXRay.captureAsyncFunc("## accessing S3", f, segment);
   });
@@ -138,12 +134,12 @@ let callServiceB = (segment, n) => {
   return new Promise((resolve, reject) => {
     console.log("service-a is going to call service-b");
 
-    let f = co.wrap(function* (subsegment) {
+    let f = async (subsegment) => {
       subsegment.addAnnotation('path', '/dev/demo/service-b');  // this works
       subsegment.addMetadata('random', n);                      // this works
       console.log(JSON.stringify(subsegment));
 
-      let resp = yield utils.request('GET', global.hostname, '/dev/demo/service-b');
+      let resp = await utils.request('GET', global.hostname, '/dev/demo/service-b');
 
       console.log(resp);
       let body = JSON.parse(resp);
@@ -153,13 +149,13 @@ let callServiceB = (segment, n) => {
       // remember to close subsegment or it won't show up in trace
       subsegment.close();
       resolve(body.message);
-    });
+    };
 
     AWSXRay.captureAsyncFunc("## calling service b", f, segment);
   });
 };
 
-module.exports.handler = co.wrap(function* (event, context, callback) {
+module.exports.handler = async (event, context) => {
   console.log(JSON.stringify(event));
   console.log(JSON.stringify(context));
 
@@ -178,11 +174,11 @@ module.exports.handler = co.wrap(function* (event, context, callback) {
   segment.addAnnotation('path', event.path);
 
   if (n <= 1) {
-    yield publishSNS(segment);
-    yield accessS3(segment);
-    yield accessDynamoDB(segment);
-    yield invokeLambda(segment);
-    let message = yield callServiceB(segment, n);
+    await publishSNS(segment);
+    await accessS3(segment);
+    await accessDynamoDB(segment);
+    await invokeLambda(segment);
+    let message = await callServiceB(segment, n);
     const response = {
       statusCode: 200,
       body: JSON.stringify({
@@ -192,16 +188,16 @@ module.exports.handler = co.wrap(function* (event, context, callback) {
 
     console.log(JSON.stringify(segment));
 
-    callback(null, response);
+    return response;
   } else if (n <= 2) {
     console.log("service-a is going to call the timeout endpoint");
-    yield utils.request('GET', hostname, '/dev/demo/timeout');
+    await utils.request('GET', hostname, '/dev/demo/timeout');
 
     throw new Error("timed out");
   } else {
     console.log("service-a is going to call the error endpoint");
-    yield utils.request('GET', hostname, '/dev/demo/error');
+    await utils.request('GET', hostname, '/dev/demo/error');
 
     throw new Error("boom");
   }
-});
+};

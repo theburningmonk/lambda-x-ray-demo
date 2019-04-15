@@ -1,7 +1,3 @@
-'use strict';
-
-module.exports.handler = (event, context, callback) => {
+module.exports.handler = async (event, context) => {
   console.log(JSON.stringify(event));
-
-  callback(null, "ok");
 };

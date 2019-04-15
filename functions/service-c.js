@@ -35,5 +35,5 @@ module.exports.handler = async (event, context) => {
 
   await publishSNS(segment);
 
-  callback(null, "foo");
+  return "foo";
 };

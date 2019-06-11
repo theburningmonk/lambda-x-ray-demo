@@ -1,8 +1,6 @@
-'use strict';
+module.exports.handler = async (event) => {
+  console.log(JSON.stringify(event))
+  console.log("this is going to error...")
 
-module.exports.handler = (event, context, callback) => {
-  console.log(JSON.stringify(event));
-  console.log("this is going to error...");
-
-  throw new Error("boom");
-};
+  throw new Error("boom")
+}

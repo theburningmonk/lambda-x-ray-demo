@@ -6,7 +6,7 @@ plugins:
 
 custom:
   lumigo:
-    token: t_7afe5952d7644bd48a2f5
+    token: ${ssm:/dev/lumigo-token}
 
 provider:
   name: aws

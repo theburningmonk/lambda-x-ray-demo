@@ -1,51 +1,25 @@
 service: lambda-x-ray-demo
 
 plugins:
-  - serverless-pseudo-parameters
+  - serverless-iam-roles-per-function
+  - serverless-lumigo
 
 custom:
-  bucketName: lambda-x-ray-demo-${self:provider.stage}-#{AWS::Region}-#{AWS::AccountId}
+  lumigo:
+    token: t_7afe5952d7644bd48a2f5
 
 provider:
   name: aws
-  runtime: nodejs12.x
+  runtime: nodejs14.x
   stage: dev
   region: us-east-1
   tracing:
     apiGateway: true
     lambda: true
-  versionFunctions: false
   environment:
     stage: ${self:provider.stage}
-    service: ${self:service}
-    accountId: 
-      Ref: AWS::AccountId
-
-  iamRoleStatements:
-    - Effect: "Allow"
-      Action:
-        - "dynamodb:PutItem"
-        - "dynamodb:GetItem"
-      Resource:
-        - "arn:aws:dynamodb:${self:provider.region}:*:table/lambda-x-ray-demo-${self:provider.stage}"
-    - Effect: "Allow"
-      Action:
-        - "s3:GetObject*"
-        - "s3:PutObject*"
-        - "s3:ListBucket*"
-      Resource:
-        - "arn:aws:s3:::${self:custom.bucketName}"
-        - "arn:aws:s3:::${self:custom.bucketName}/*"
-    - Effect: "Allow"
-      Action:
-        - "sns:Publish"
-      Resource:
-        - "arn:aws:sns:${self:provider.region}:*:lambda-x-ray-demo-${self:provider.stage}"
-    - Effect: "Allow"
-      Action:
-        - "lambda:InvokeFunction"
-      Resource:
-        - "arn:aws:lambda:${self:provider.region}:*:function:lambda-x-ray-demo-${self:provider.stage}-*"
+  eventBridge:
+    useCloudFormation: true
 
 functions:
   service-a:
@@ -53,23 +27,52 @@ functions:
     timeout: 10
     events:
       - http:
-          path: demo/service-a
+          path: /service-a
           method: get
-          request:
-            parameters:
-              querystrings:
-                n: true
     environment:
-      BUCKET_NAME: ${self:custom.bucketName}
+      BUCKET_NAME: !Ref S3Bucket
+      TABLE_NAME: !Ref DynamoDB
+      TOPIC_ARN: !Ref Topic
+      QUEUE_URL: !Ref Queue
+      FUNCTION_NAME: !Ref CallLambdaFunction
+      STREAM_NAME: !Ref Kinesis
+      BUS_NAME: !Ref EventBus
+    iamRoleStatements:
+      - Effect: Allow
+        Action: dynamodb:PutItem
+        Resource: !GetAtt DynamoDB.Arn
+      - Effect: Allow
+        Action: s3:PutObject*
+        Resource:
+          - !GetAtt S3Bucket.Arn
+          - !Sub ${S3Bucket.Arn}/*
+      - Effect: Allow
+        Action: sns:Publish
+        Resource: !Ref Topic
+      - Effect: Allow
+        Action: sqs:SendMessage
+        Resource: !GetAtt Queue.Arn
+      - Effect: Allow
+        Action: lambda:InvokeFunction
+        Resource: !GetAtt CallLambdaFunction.Arn
+      - Effect: Allow
+        Action: kinesis:PutRecord
+        Resource: !GetAtt Kinesis.Arn
+      - Effect: Allow
+        Action: events:PutEvents
+        Resource: !GetAtt EventBus.Arn
+      - Effect: Allow
+        Action: xray:Put*
+        Resource: '*'
 
   service-b:
     handler: functions/service-b.handler
     events:
       - http:
-          path: demo/service-b
+          path: /service-b
           method: get
 
-  service-c:
+  call:
     handler: functions/service-c.handler
 
   timeout:
@@ -91,27 +94,101 @@ functions:
     handler: functions/sns.handler
     events:
       - sns:
-          topicName: ${self:service}-${self:provider.stage}
-          displayName: ${self:service}-${self:provider.stage}
+          topicName: test-topic
+          arn: !Ref Topic
+          
+  sqs:
+    handler: functions/sqs.handler
+    events:
+      - sqs:
+          arn: !GetAtt Queue.Arn
+          batchSize: 10
+
+  s3:
+    handler: functions/s3.handler
+    events:
+      - s3:
+          existing: true
+          event: s3:ObjectCreated:*
+          bucket: !Ref S3Bucket
+
+  kinesis:
+    handler: functions/kinesis.handler
+    events:
+      - stream:
+          type: kinesis
+          arn: !GetAtt Kinesis.Arn
+
+  dynamodb:
+    handler: functions/dynamodb.handler
+    events:
+      - stream:
+          type: dynamodb
+          arn: !GetAtt DynamoDB.StreamArn
+
+  eventbridge:
+    handler: functions/event-bridge.handler
+    events:
+      - eventBridge:
+          eventBus: !GetAtt EventBus.Name
+          pattern:
+            source: 
+              - xray-test
 
 # you can add CloudFormation resource templates here
 resources:
   Resources:
     S3Bucket:
       Type: AWS::S3::Bucket
-      Properties:
-        BucketName: ${self:custom.bucketName}
 
     DynamoDB:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: lambda-x-ray-demo-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
-        ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+
+    Topic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: test-topic
+
+    Queue:
+      Type: AWS::SQS::Queue
+
+    QueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        PolicyDocument:
+          Statement: 
+            - Action: 
+                - SQS:SendMessage
+              Effect: Allow
+              Resource: !GetAtt Queue.Arn
+              Principal:  
+                Service: sns.amazonaws.com
+        Queues:
+          - !Ref Queue
+
+    Subscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Protocol: sqs
+        Endpoint: !GetAtt Queue.Arn
+        TopicArn: !Ref Topic
+
+    Kinesis:
+      Type: AWS::Kinesis::Stream
+      Properties:
+        ShardCount: 1
+
+    EventBus:
+      Type: AWS::Events::EventBus
+      Properties:
+        Name: xray-test
